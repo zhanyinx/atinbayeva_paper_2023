@@ -19,6 +19,8 @@ function help {
     echo
     echo "   -r|--reference REFERENCE : reference bam file against which you want to normalise the query."
     echo "   -q|--query QUERY: query bam file to normalise"
+    echo "   [--queryh3 QUERYH3] : bam file of H3 cuttag for the query. If defined, together with refh3, normalise also for starting material using H3 cuttag"
+    echo "   [--refh3 REFH3]: bam file of H3 cuttag for reference. If defined, together with queryh3, normalise also for starting material using H3 cuttag"
     echo "   [-g|--genomeid GENOMEID] : id the of spikein genome, default: J02459.1_spikein"
     echo "   [-h|--help]: help"
     exit;
@@ -32,20 +34,26 @@ for arg in "$@"; do
       "--reference") set -- "$@" "-r" ;;
       "--query")   set -- "$@" "-q" ;;
       "--genomeid")   set -- "$@" "-g" ;;
+      "--refh3")   set -- "$@" "-x" ;;
+      "--queryh3")   set -- "$@" "-y" ;;
        *)        set -- "$@" "$arg"
   esac
 done
 
 REF=""
 QUERY=""
+QUERYH3=""
+REFH3=""
 GENOMEID="J02459.1_spikein"
 
-while getopts ":r:q:g:h" OPT
+while getopts ":r:q:g:x:y:h" OPT
 do
     case $OPT in
         r) REF=$OPTARG;;
         q) QUERY=$OPTARG;;
         g) GENOMEID=$OPTARG;;
+        x) REFH3=$OPTARG;;
+        y) QUERYH3=$OPTARG;;
         h) help ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -81,14 +89,37 @@ if [ -f stats_mapped_reads.txt ]; then
 	rm stats_mapped_reads.txt
 fi
 
+
+
+
+echo "sample genome spikein rescaling" > stats_mapped_reads.txt
+
+
+if [ -f $REFH3 ] && [ -f $QUERYH3 ]; then 
+	# calculate rescaling of H3 to account for input material
+	samtools view -o out.sam $QUERYH3
+	rescaling_query=`awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print g/s}' out.sam`
+
+	samtools view -o out.sam $REFH3
+	rescaling_ref=`awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print g/s}' out.sam`
+
+	rescaling_h3=`awk 'BEGIN{print "'"$rescaling_query"'"/"'"$rescaling_ref"'"}'`
+else
+	rescaling_h3=1
+fi
+
+
+
+
 # extract normalisation factor
 file=$REF
 samtools view -o out.sam $file
-rescaling=`awk '{if($3=="J02459.1_spikein") s++; else g++}END{print g/s}' out.sam`
-for file in $REF $QUERY; do
-	samtools view -o out.sam $file
-	awk '{if($3=="J02459.1_spikein") s++; else g++}END{print "'"$file"'", g, s, g/s/"'"$rescaling"'"}' out.sam >> stats_mapped_reads.txt
-done
+rescaling=`awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print g/s}' out.sam`
+awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print "'"$file"'", g, s, g/s/"'"$rescaling"'"}' out.sam >> stats_mapped_reads.txt
+
+file=$QUERY
+samtools view -o out.sam $file
+awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print "'"$file"'", g, s, g/s/"'"$rescaling"'"/"'"$rescaling_h3"'"}' out.sam >> stats_mapped_reads.txt
 
 
 
