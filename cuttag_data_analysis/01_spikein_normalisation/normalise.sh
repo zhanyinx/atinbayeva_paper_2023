@@ -114,12 +114,12 @@ fi
 # extract normalisation factor
 file=$REF
 samtools view -o out.sam $file
-rescaling=`awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print g/s}' out.sam`
-awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print "'"$file"'", g, s, g/s/"'"$rescaling"'"}' out.sam >> stats_mapped_reads.txt
+rescaling=`awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print 1/s}' out.sam`
+awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print "'"$file"'", g, s, 1/s/"'"$rescaling"'"}' out.sam >> stats_mapped_reads.txt
 
 file=$QUERY
 samtools view -o out.sam $file
-awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print "'"$file"'", g, s, g/s/"'"$rescaling"'"/"'"$rescaling_h3"'"}' out.sam >> stats_mapped_reads.txt
+awk '{if($3=="'"$GENOMEID"'") s++; else g++}END{print "'"$file"'", g, s, 1/s/"'"$rescaling"'"/"'"$rescaling_h3"'"}' out.sam >> stats_mapped_reads.txt
 
 
 
